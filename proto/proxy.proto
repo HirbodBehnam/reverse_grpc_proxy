@@ -1,0 +1,29 @@
+syntax = "proto3";
+package proxy;
+
+message ConnectionID {
+    bytes id = 1;
+}
+
+message ProxyRequest {
+    oneof data {
+        TCPStreamPacket packet = 1;
+        ConnectionID established_connection_id = 2;
+    }
+}
+
+message TCPStreamPacket {
+    bytes data = 1;
+}
+
+message ControllerRequest {
+}
+
+message ControllerResponse {
+    ConnectionID requested_connection_id = 1;
+}
+
+service ProxyController {
+    rpc Controller (ControllerRequest) returns (stream ControllerResponse) {}
+    rpc Proxy (stream ProxyRequest) returns (stream TCPStreamPacket) {}
+}
