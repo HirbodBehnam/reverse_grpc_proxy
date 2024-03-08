@@ -1,10 +1,10 @@
-use std::{collections::HashMap, ops::DerefMut};
+use std::{collections::HashMap, ops::DerefMut, str::FromStr};
 
-use self::proxy::{ConnectionId, ControllerResponse, ProxyRequest, TcpStreamPacket};
+use self::proxy::{ConnectionId, ControllerResponse, TcpStreamPacket};
 use crate::local::grpc::proxy::proxy_controller_server::ProxyController;
-use log::{info, trace, warn};
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use log::{debug, info, trace, warn};
+use tokio::{sync::mpsc, task};
+use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::Status;
 use uuid::Uuid;
 
@@ -12,8 +12,15 @@ pub mod proxy {
     tonic::include_proto!("proxy");
 }
 
-/// How many messages can be queued in the CONTROLLER_COMMANDER
+/// How many messages can be queued in the controller_commander
 const CONTROLLER_COMMANDER_CHAN_LENGTH: usize = 16;
+
+/// How many packets can be queued to be written in the socket
+const SOCKET_CHAN_LENGTH: usize = 16;
+
+/// The metadata name in the header of the proxy request which indicates the
+/// connection ID that the stream corresponds to.
+const CONNECTION_ID_METADATA_NAME: &str = "X-Connection-ID";
 
 /// The data type that should be sent into the pipe
 type ControllerStreamData = Result<ControllerResponse, Status>;
@@ -83,7 +90,9 @@ impl ReverseProxyLocal {
         // Try to send a request to the controller
         if self.request_connection(connection_id).await == false {
             // Oops. The controller is dead
-            self.pending_socket_connections.lock().remove(&connection_id);
+            self.pending_socket_connections
+                .lock()
+                .remove(&connection_id);
             return false;
         }
         // Done!
@@ -114,14 +123,70 @@ impl ProxyController for ReverseProxyLocal {
         drop(commander);
         // Finalize the upgrade process by returning upgrade callback.
         info!("Detected a new commander");
-        Ok(tonic::Response::new(ReceiverStream::new(command_receiver)))
+        return Ok(tonic::Response::new(ReceiverStream::new(command_receiver)));
     }
 
     type ProxyStream = ReceiverStream<Result<TcpStreamPacket, Status>>;
     async fn proxy(
         &self,
-        request: tonic::Request<tonic::Streaming<ProxyRequest>>,
+        request: tonic::Request<tonic::Streaming<TcpStreamPacket>>,
     ) -> Result<tonic::Response<Self::ProxyStream>, tonic::Status> {
-        unimplemented!();
+        // First things first, get the connection stuff
+        let connection_id = request
+            .metadata()
+            .get(CONNECTION_ID_METADATA_NAME)
+            .ok_or(tonic::Status::not_found(CONNECTION_ID_METADATA_NAME))?
+            .to_str()
+            .map_err(|e| tonic::Status::data_loss(e.to_string()))?;
+        let connection_id = Uuid::from_str(connection_id)
+            .map_err(|_| tonic::Status::invalid_argument(CONNECTION_ID_METADATA_NAME))?;
+        let connection_pipe = self
+            .pending_socket_connections
+            .lock()
+            .remove(&connection_id)
+            .ok_or(tonic::Status::not_found(CONNECTION_ID_METADATA_NAME))?;
+        // Create the stream
+        let mut incoming_stream = request.into_inner();
+        // Create a thread to copy data from remote to socket
+        task::spawn(async move {
+            while let Some(data) = incoming_stream.next().await {
+                if data.is_err() {
+                    // connection closed from remote
+                    debug!("grpc-{}: Remote closed the connection", connection_id);
+                    break;
+                }
+                let data = data.unwrap();
+                if let Err(err) = connection_pipe.grpc_data.send(data.data).await {
+                    // close the connection if socket is closed
+                    debug!(
+                        "grpc-{}: Socket closed the connection: {}",
+                        connection_id, err
+                    );
+                    break;
+                }
+            }
+            debug!("grpc-{}: Reader died", connection_id);
+        });
+        // Create a thread to copy data from socket to remote
+        let (data_sender, data_receiver) = mpsc::channel(SOCKET_CHAN_LENGTH);
+        let mut socket_data = connection_pipe.socket_data;
+        task::spawn(async move {
+            while let Some(data) = socket_data.recv().await {
+                if data_sender
+                    .send(Ok(TcpStreamPacket { data }))
+                    .await
+                    .is_err()
+                {
+                    debug!("grpc-{}: Socket died", connection_id);
+                    break;
+                }
+            }
+            // Here, we just send a dummy value to terminate the connection
+            let _ = data_sender
+                .send(Err(tonic::Status::ok(String::new())))
+                .await;
+            debug!("grpc-{}: Writer died", connection_id);
+        });
+        return Ok(tonic::Response::new(ReceiverStream::new(data_receiver)));
     }
 }
