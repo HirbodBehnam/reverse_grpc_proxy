@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::DerefMut, str::FromStr};
+use std::{collections::HashMap, fmt::Display, ops::DerefMut, str::FromStr};
 
 use self::proxy::{ConnectionId, ControllerResponse, TcpStreamPacket};
 use crate::local::grpc::proxy::proxy_controller_server::ProxyController;
@@ -16,7 +16,7 @@ pub mod proxy {
 const CONTROLLER_COMMANDER_CHAN_LENGTH: usize = 16;
 
 /// How many packets can be queued to be written in the socket
-const SOCKET_CHAN_LENGTH: usize = 16;
+const SOCKET_CHAN_LENGTH: usize = 32;
 
 /// The metadata name in the header of the proxy request which indicates the
 /// connection ID that the stream corresponds to.
@@ -188,5 +188,11 @@ impl ProxyController for ReverseProxyLocal {
             debug!("grpc-{}: Writer died", connection_id);
         });
         return Ok(tonic::Response::new(ReceiverStream::new(data_receiver)));
+    }
+}
+
+impl core::fmt::Display for ReverseProxyLocal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        unimplemented!();
     }
 }
