@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, os::unix::net::SocketAddr, sync::Arc};
+use std::{borrow::Borrow, sync::Arc};
 
 use log::info;
 
@@ -15,9 +15,10 @@ pub async fn start_local_server(cf_listen_address: &str, local_listen_address: &
         .parse()
         .expect("cannot parse the socket address");
     info!("Cloudflare listen is {cf_listen_address}");
-    let reverse_proxy_local_service = grpc::proxy::proxy_controller_server::ProxyControllerServer::from_arc(
-        Arc::clone(&reverse_proxy_local),
-    );
+    let reverse_proxy_local_service =
+        grpc::proxy::proxy_controller_server::ProxyControllerServer::from_arc(Arc::clone(
+            &reverse_proxy_local,
+        ));
     tokio::spawn(async move {
         tonic::transport::Server::builder()
             .add_service(reverse_proxy_local_service)

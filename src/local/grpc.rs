@@ -1,8 +1,8 @@
-use std::{collections::HashMap, fmt::Display, ops::DerefMut, str::FromStr};
+use std::{collections::HashMap, ops::DerefMut, str::FromStr};
 
 use self::proxy::{ConnectionId, ControllerResponse, TcpStreamPacket};
 use crate::local::grpc::proxy::proxy_controller_server::ProxyController;
-use log::{debug, info, trace, warn};
+use log::{debug, info, warn};
 use tokio::{sync::mpsc, task};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::Status;
