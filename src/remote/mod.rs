@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 
-use log::{info, warn};
+use log::{debug, info, warn};
 use proxy::proxy_controller_client::ProxyControllerClient;
 use tokio_stream::StreamExt;
 use tonic::Request;
@@ -16,6 +16,7 @@ pub mod proxy {
 pub async fn start_remote_server(controller_endpoint: String, forward_address: &str) {
     // Leak values because why not
     let controller_endpoint: &'static str = Box::leak(Box::new(controller_endpoint));
+    let forward_address: SocketAddr = forward_address.parse().expect("cannot parse the forward address");
     // Loop because we want to retry connecting to controller
     loop {
         // Dummy wait to disable the burst retries
@@ -53,7 +54,8 @@ pub async fn start_remote_server(controller_endpoint: String, forward_address: &
             }
             let connection_id = connection_id.unwrap();
             // Create a new connection to the local
-            create_new_connection(connection_id, &mut client).await;
+            debug!("New connection request: {}", connection_id);
+            create_new_connection(connection_id, forward_address, &mut client).await;
         }
     }
 }

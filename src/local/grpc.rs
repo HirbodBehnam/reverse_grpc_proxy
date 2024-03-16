@@ -190,9 +190,3 @@ impl ProxyController for ReverseProxyLocal {
         return Ok(tonic::Response::new(ReceiverStream::new(data_receiver)));
     }
 }
-
-impl core::fmt::Display for ReverseProxyLocal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        unimplemented!();
-    }
-}
