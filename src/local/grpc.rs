@@ -1,8 +1,8 @@
 use std::{collections::HashMap, ops::DerefMut, str::FromStr};
 
 use self::proxy::{ConnectionId, ControllerResponse, TcpStreamPacket};
-use crate::local::grpc::proxy::proxy_controller_server::ProxyController;
-use log::{debug, info, warn};
+use crate::{local::grpc::proxy::proxy_controller_server::ProxyController, util::{CONNECTION_ID_METADATA_NAME, SOCKET_CHAN_LENGTH}};
+use log::{debug, info, trace, warn};
 use tokio::{sync::mpsc, task};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::Status;
@@ -14,13 +14,6 @@ pub mod proxy {
 
 /// How many messages can be queued in the controller_commander
 const CONTROLLER_COMMANDER_CHAN_LENGTH: usize = 16;
-
-/// How many packets can be queued to be written in the socket
-const SOCKET_CHAN_LENGTH: usize = 32;
-
-/// The metadata name in the header of the proxy request which indicates the
-/// connection ID that the stream corresponds to.
-const CONNECTION_ID_METADATA_NAME: &str = "X-Connection-ID";
 
 /// The data type that should be sent into the pipe
 type ControllerStreamData = Result<ControllerResponse, Status>;
@@ -138,6 +131,7 @@ impl ProxyController for ReverseProxyLocal {
             .ok_or(tonic::Status::not_found(CONNECTION_ID_METADATA_NAME))?
             .to_str()
             .map_err(|e| tonic::Status::data_loss(e.to_string()))?;
+        trace!("A new proxy request for {}", connection_id);
         let connection_id = Uuid::from_str(connection_id)
             .map_err(|_| tonic::Status::invalid_argument(CONNECTION_ID_METADATA_NAME))?;
         let connection_pipe = self
@@ -147,6 +141,7 @@ impl ProxyController for ReverseProxyLocal {
             .ok_or(tonic::Status::not_found(CONNECTION_ID_METADATA_NAME))?;
         // Create the stream
         let mut incoming_stream = request.into_inner();
+        info!("Started proxying {}", connection_id);
         // Create a thread to copy data from remote to socket
         task::spawn(async move {
             while let Some(data) = incoming_stream.next().await {

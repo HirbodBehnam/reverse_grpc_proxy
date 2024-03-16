@@ -6,10 +6,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
-/// How many packets can be queued in the socket queue
-const SOCKET_QUEUE_LENGTH: usize = 32;
-/// How big is our read buffer size
-const READ_BUFFER_SIZE: usize = 32 * 1024;
+use crate::util::{READ_BUFFER_SIZE, SOCKET_CHAN_LENGTH};
 
 pub(crate) async fn handle_socket(listen: &str, reverse_proxy: &super::grpc::ReverseProxyLocal) {
     // Create the socket and listen
@@ -22,8 +19,8 @@ pub(crate) async fn handle_socket(listen: &str, reverse_proxy: &super::grpc::Rev
         let socket_id = Uuid::new_v4();
         debug!("Accepted connection {socket_address} associated with {socket_id}");
         // Create the pipes and add the request in the pending sockets
-        let (socket_sender, socket_receiver) = mpsc::channel(SOCKET_QUEUE_LENGTH);
-        let (grpc_sender, grpc_receiver) = mpsc::channel(SOCKET_QUEUE_LENGTH);
+        let (socket_sender, socket_receiver) = mpsc::channel(SOCKET_CHAN_LENGTH);
+        let (grpc_sender, grpc_receiver) = mpsc::channel(SOCKET_CHAN_LENGTH);
         if reverse_proxy
             .register_socket(socket_id, grpc_sender, socket_receiver)
             .await

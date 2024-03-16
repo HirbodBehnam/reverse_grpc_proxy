@@ -5,10 +5,7 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream, sync::mpsc, task}
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Request;
 
-/// How many packets can be queued to be written in the socket
-const SOCKET_CHAN_LENGTH: usize = 32;
-/// How big is our read buffer size
-const READ_BUFFER_SIZE: usize = 32 * 1024;
+use crate::util::{CONNECTION_ID_METADATA_NAME, READ_BUFFER_SIZE, SOCKET_CHAN_LENGTH};
 
 pub(crate) async fn create_new_connection(
     connection_id: uuid::Uuid,
@@ -26,7 +23,8 @@ pub(crate) async fn create_new_connection(
     let (mut forward_stream_read, mut forward_stream_write) = forward_stream.unwrap().into_split();
     // Do a gRPC request to the local
     let (data_sender, data_receiver) = mpsc::channel(SOCKET_CHAN_LENGTH);
-    let request = Request::new(ReceiverStream::new(data_receiver));
+    let mut request = Request::new(ReceiverStream::new(data_receiver));
+    request.metadata_mut().insert(CONNECTION_ID_METADATA_NAME, connection_id.to_string().parse().unwrap());
     let proxy_response = client.proxy(request).await;
     if let Err(err) = proxy_response {
         error!("Cannot connect to local for {}: {}", connection_id, err);

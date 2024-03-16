@@ -18,7 +18,7 @@ pub enum Commands {
         cloudflare_listen_address: String,
     },
     #[command(about = "Run as the program that connects to cloudflare", long_about = None)]
-    Server {
+    Remote {
         #[arg(short = 'c', long, help = "What is the address of cloudflare that we should send the gRPC to?")]
         cloudflare_server_address: String,
         #[arg(short = 'f', long, help = "Where we should forward the gRPC traffic?")]
