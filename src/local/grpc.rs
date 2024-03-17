@@ -145,9 +145,9 @@ impl ProxyController for ReverseProxyLocal {
         // Create a thread to copy data from remote to socket
         task::spawn(async move {
             while let Some(data) = incoming_stream.next().await {
-                if data.is_err() {
+                if let Err(status) = data {
                     // connection closed from remote
-                    debug!("grpc-{}: Remote closed the connection", connection_id);
+                    debug!("grpc-{}: Remote closed the connection: {}", connection_id, status);
                     break;
                 }
                 let data = data.unwrap();

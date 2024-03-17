@@ -36,6 +36,9 @@ pub(crate) async fn create_new_connection(
     task::spawn(async move {
         let mut read_buffer = [0u8; READ_BUFFER_SIZE];
         while let Ok(n) = forward_stream_read.read(&mut read_buffer).await {
+            if n == 0 {
+                break;
+            }
             if let Err(err) = data_sender
                 .send(crate::remote::proxy::TcpStreamPacket {
                     data: read_buffer[..n].to_owned(),

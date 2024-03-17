@@ -51,12 +51,15 @@ async fn handle_opened_socket(
     let mut socket_reader_task = tokio::task::spawn(async move {
         let mut read_buffer = [0u8; READ_BUFFER_SIZE];
         while let Ok(n) = socket_r.read(&mut read_buffer).await {
+            if n == 0 {
+                break;
+            }
             socket_sender
                 .send(read_buffer[..n].to_owned())
                 .await
                 .unwrap();
         }
-        debug!("Socket {socket_id} closed on read");
+        debug!("Socket {} closed on read", socket_id);
     });
     // Now in a loop, wait for either a received packet from websocket or reader finishing
     loop {
@@ -67,11 +70,15 @@ async fn handle_opened_socket(
             data = grpc_receiver.recv() => {
                 match data {
                     Some(data) => { // if there is data, write it into the pipe
-                        socket_w.write(&data).await.unwrap();
+                        if let Err(err) = socket_w.write(&data).await {
+                            debug!("Cannot write data in socket {}: {}", socket_id, err);
+                            socket_reader_task.abort();
+                            return;
+                        }
                     }
                     None => { // websocket closed
                         socket_reader_task.abort();
-                        debug!("Socket {socket_id} closed on write");
+                        debug!("Socket {} closed on write", socket_id);
                         return; // socket_w will be dropped and connection will be closed
                     }
                 }
