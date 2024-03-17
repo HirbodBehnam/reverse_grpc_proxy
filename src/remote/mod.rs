@@ -25,7 +25,7 @@ pub async fn start_remote_server(controller_endpoint: String, forward_address: &
         info!("Trying to connect to controller at {}", controller_endpoint);
         let client = ProxyControllerClient::connect(controller_endpoint).await;
         if let Err(err) = client {
-            warn!("Cannot connect to controller: {:?}", err);
+            warn!("Cannot connect to controller: {}", err);
             continue;
         }
         info!("Connected to controller");
@@ -35,21 +35,21 @@ pub async fn start_remote_server(controller_endpoint: String, forward_address: &
             .controller(Request::new(proxy::ControllerRequest::default()))
             .await;
         if let Err(err) = requests {
-            warn!("Cannot connect to controller endpoint: {:?}", err);
+            warn!("Cannot connect to controller endpoint: {}", err);
             continue;
         }
         // Read each request
         let mut requests = requests.unwrap().into_inner();
         while let Some(request) = requests.next().await {
             if let Err(err) = request {
-                warn!("Controller disconnected: {:?}", err);
+                warn!("Controller disconnected: {}", err);
                 break;
             }
             // Parse the connection ID
             let connection_id = request.unwrap().requested_connection_id.unwrap();
             let connection_id = uuid::Uuid::from_slice(connection_id.id.as_slice());
             if let Err(err) = connection_id {
-                warn!("Invalid UUID: {:?}", err);
+                warn!("Invalid UUID: {}", err);
                 continue;
             }
             let connection_id = connection_id.unwrap();

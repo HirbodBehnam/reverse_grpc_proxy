@@ -141,26 +141,26 @@ impl ProxyController for ReverseProxyLocal {
             .ok_or(tonic::Status::not_found(CONNECTION_ID_METADATA_NAME))?;
         // Create the stream
         let mut incoming_stream = request.into_inner();
-        info!("Started proxying {}", connection_id);
+        info!("grpc-{}: started proxying", connection_id);
         // Create a thread to copy data from remote to socket
         task::spawn(async move {
             while let Some(data) = incoming_stream.next().await {
                 if let Err(status) = data {
                     // connection closed from remote
-                    debug!("grpc-{}: Remote closed the connection: {}", connection_id, status);
+                    debug!("grpc-{}: remote closed the connection: {}", connection_id, status);
                     break;
                 }
                 let data = data.unwrap();
                 if let Err(err) = connection_pipe.grpc_data.send(data.data).await {
                     // close the connection if socket is closed
                     debug!(
-                        "grpc-{}: Socket closed the connection: {}",
+                        "grpc-{}: socket closed the connection: {}",
                         connection_id, err
                     );
                     break;
                 }
             }
-            debug!("grpc-{}: Reader died", connection_id);
+            debug!("grpc-{}: reader died", connection_id);
         });
         // Create a thread to copy data from socket to remote
         let (data_sender, data_receiver) = mpsc::channel(SOCKET_CHAN_LENGTH);
@@ -172,7 +172,7 @@ impl ProxyController for ReverseProxyLocal {
                     .await
                     .is_err()
                 {
-                    debug!("grpc-{}: Socket died", connection_id);
+                    debug!("grpc-{}: socket died", connection_id);
                     break;
                 }
             }
@@ -180,7 +180,7 @@ impl ProxyController for ReverseProxyLocal {
             let _ = data_sender
                 .send(Err(tonic::Status::ok(String::new())))
                 .await;
-            debug!("grpc-{}: Writer died", connection_id);
+            debug!("grpc-{}: writer died", connection_id);
         });
         return Ok(tonic::Response::new(ReceiverStream::new(data_receiver)));
     }

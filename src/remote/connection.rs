@@ -17,7 +17,7 @@ pub(crate) async fn create_new_connection(
     // Create a TCP socket to the forward address
     let forward_stream = TcpStream::connect(forward_address).await;
     if let Err(err) = forward_stream {
-        error!("Cannot connect to forward address: {:?}", err);
+        error!("cannot connect to forward address: {:?}", err);
         return;
     }
     let (mut forward_stream_read, mut forward_stream_write) = forward_stream.unwrap().into_split();
@@ -27,7 +27,7 @@ pub(crate) async fn create_new_connection(
     request.metadata_mut().insert(CONNECTION_ID_METADATA_NAME, connection_id.to_string().parse().unwrap());
     let proxy_response = client.proxy(request).await;
     if let Err(err) = proxy_response {
-        error!("Cannot connect to local for {}: {}", connection_id, err);
+        error!("cannot connect to local for {}: {}", connection_id, err);
         return;
     }
     let mut proxy_response = proxy_response.unwrap().into_inner();
