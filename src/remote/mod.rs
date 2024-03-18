@@ -16,7 +16,9 @@ pub mod proxy {
 pub async fn start_remote_server(controller_endpoint: String, forward_address: &str) {
     // Leak values because why not
     let controller_endpoint: &'static str = Box::leak(Box::new(controller_endpoint));
-    let forward_address: SocketAddr = forward_address.parse().expect("cannot parse the forward address");
+    let forward_address: SocketAddr = forward_address
+        .parse()
+        .expect("cannot parse the forward address");
     // Loop because we want to retry connecting to controller
     loop {
         // Dummy wait to disable the burst retries

@@ -3,10 +3,11 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
     sync::mpsc::{self, Receiver, Sender},
+    sync::oneshot,
 };
 use uuid::Uuid;
 
-use crate::util::{READ_BUFFER_SIZE, SOCKET_CHAN_LENGTH};
+use crate::util::{self, READ_BUFFER_SIZE, SOCKET_CHAN_LENGTH};
 
 pub(crate) async fn handle_socket(listen: &str, reverse_proxy: &super::grpc::ReverseProxyLocal) {
     // Create the socket and listen
@@ -45,10 +46,11 @@ async fn handle_opened_socket(
 ) {
     // We don't need to wait for the websocket, just send the data in the pipes and hope for the best.
     let (mut socket_r, mut socket_w) = socket.into_split();
+    let (socket_closer, mut socket_closed) = oneshot::channel::<()>();
     // We use one task to read from socket and send data to gRPC
     tokio::task::spawn(async move {
         let mut read_buffer = [0u8; READ_BUFFER_SIZE];
-        while let Ok(n) = socket_r.read(&mut read_buffer).await {
+        while let Ok(n) = util::read_with_cancel!(socket_r, read_buffer, socket_closed) {
             if n == 0 {
                 break;
             }
@@ -70,7 +72,7 @@ async fn handle_opened_socket(
                 break;
             }
         }
-        let _ = socket_w.shutdown().await;
         debug!("socket-{}: closed on write", socket_id);
+        drop(socket_closer);
     });
 }

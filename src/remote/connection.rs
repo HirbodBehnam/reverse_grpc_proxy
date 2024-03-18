@@ -1,11 +1,16 @@
 use std::net::SocketAddr;
 
 use log::{debug, error};
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream, sync::mpsc, task};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+    sync::{mpsc, oneshot},
+    task,
+};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Request;
 
-use crate::util::{CONNECTION_ID_METADATA_NAME, READ_BUFFER_SIZE, SOCKET_CHAN_LENGTH};
+use crate::util::{self, CONNECTION_ID_METADATA_NAME, READ_BUFFER_SIZE, SOCKET_CHAN_LENGTH};
 
 pub(crate) async fn create_new_connection(
     connection_id: uuid::Uuid,
@@ -21,10 +26,14 @@ pub(crate) async fn create_new_connection(
         return;
     }
     let (mut forward_stream_read, mut forward_stream_write) = forward_stream.unwrap().into_split();
+    let (socket_closer, mut socket_closed) = oneshot::channel::<()>();
     // Do a gRPC request to the local
     let (data_sender, data_receiver) = mpsc::channel(SOCKET_CHAN_LENGTH);
     let mut request = Request::new(ReceiverStream::new(data_receiver));
-    request.metadata_mut().insert(CONNECTION_ID_METADATA_NAME, connection_id.to_string().parse().unwrap());
+    request.metadata_mut().insert(
+        CONNECTION_ID_METADATA_NAME,
+        connection_id.to_string().parse().unwrap(),
+    );
     let proxy_response = client.proxy(request).await;
     if let Err(err) = proxy_response {
         error!("cannot connect to local for {}: {}", connection_id, err);
@@ -35,7 +44,7 @@ pub(crate) async fn create_new_connection(
     // One is used to proxy from socket to gRPC
     task::spawn(async move {
         let mut read_buffer = [0u8; READ_BUFFER_SIZE];
-        while let Ok(n) = forward_stream_read.read(&mut read_buffer).await {
+        while let Ok(n) = util::read_with_cancel!(forward_stream_read, read_buffer, socket_closed) {
             if n == 0 {
                 break;
             }
@@ -68,5 +77,6 @@ pub(crate) async fn create_new_connection(
             }
         }
         debug!("grpc-{}: Reader died", connection_id);
+        drop(socket_closer);
     });
 }

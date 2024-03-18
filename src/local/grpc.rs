@@ -1,7 +1,10 @@
 use std::{collections::HashMap, ops::DerefMut, str::FromStr};
 
 use self::proxy::{ConnectionId, ControllerResponse, TcpStreamPacket};
-use crate::{local::grpc::proxy::proxy_controller_server::ProxyController, util::{CONNECTION_ID_METADATA_NAME, SOCKET_CHAN_LENGTH}};
+use crate::{
+    local::grpc::proxy::proxy_controller_server::ProxyController,
+    util::{CONNECTION_ID_METADATA_NAME, SOCKET_CHAN_LENGTH},
+};
 use log::{debug, info, trace, warn};
 use tokio::{sync::mpsc, task};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
@@ -147,7 +150,10 @@ impl ProxyController for ReverseProxyLocal {
             while let Some(data) = incoming_stream.next().await {
                 if let Err(status) = data {
                     // connection closed from remote
-                    debug!("grpc-{}: remote closed the connection: {}", connection_id, status);
+                    debug!(
+                        "grpc-{}: remote closed the connection: {}",
+                        connection_id, status
+                    );
                     break;
                 }
                 let data = data.unwrap();
