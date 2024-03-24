@@ -36,7 +36,7 @@ pub(crate) async fn create_new_connection(
     );
     let proxy_response = client.proxy(request).await;
     if let Err(err) = proxy_response {
-        error!("cannot connect to local for {}: {}", connection_id, err);
+        error!("cannot connect to local for {}: {:?}", connection_id, err);
         return;
     }
     let mut proxy_response = proxy_response.unwrap().into_inner();
@@ -56,7 +56,7 @@ pub(crate) async fn create_new_connection(
             {
                 // close the connection if socket is closed
                 debug!(
-                    "socket-{}: gRPC closed the connection: {}",
+                    "socket-{}: gRPC closed the connection: {:?}",
                     connection_id, err
                 );
                 break;
@@ -70,7 +70,7 @@ pub(crate) async fn create_new_connection(
             if let Err(err) = forward_stream_write.write(data.data.as_slice()).await {
                 // close the connection if socket is closed
                 debug!(
-                    "grpc-{}: Socket closed the connection: {}",
+                    "grpc-{}: Socket closed the connection: {:?}",
                     connection_id, err
                 );
                 break;

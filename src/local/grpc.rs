@@ -160,7 +160,7 @@ impl ProxyController for ReverseProxyLocal {
                 if let Err(err) = connection_pipe.grpc_data.send(data.data).await {
                     // close the connection if socket is closed
                     debug!(
-                        "grpc-{}: socket closed the connection: {}",
+                        "grpc-{}: socket closed the connection: {:?}",
                         connection_id, err
                     );
                     break;

@@ -14,10 +14,14 @@ async fn main() {
         arguments::Commands::Local {
             tcp_listen_address,
             cloudflare_listen_address,
-        } => local::start_local_server(&cloudflare_listen_address, &tcp_listen_address).await,
+            tls_cert,
+            tls_key,
+        } => local::start_local_server(&cloudflare_listen_address, &tcp_listen_address, tls_cert, tls_key).await,
         arguments::Commands::Remote {
             cloudflare_server_address,
             forward_address,
-        } => remote::start_remote_server(cloudflare_server_address, &forward_address).await,
+            certificate_authority,
+            domain,
+        } => remote::start_remote_server(cloudflare_server_address, &forward_address, certificate_authority.as_ref(), domain).await,
     };
 }

@@ -68,7 +68,7 @@ async fn handle_opened_socket(
     tokio::task::spawn(async move {
         while let Some(data) = grpc_receiver.recv().await {
             if let Err(err) = socket_w.write(&data).await {
-                debug!("socket-{}: cannot write data in socket {}", socket_id, err);
+                debug!("socket-{}: cannot write data in socket: {:?}", socket_id, err);
                 break;
             }
         }
